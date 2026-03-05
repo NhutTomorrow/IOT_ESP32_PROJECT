@@ -8,7 +8,13 @@
 
 extern float glob_temperature;
 extern float glob_humidity;
-
+struct Sensor_data
+{
+    float temperature;
+    float humidity;
+    SemaphoreHandle_t se_data;  // semaphone to mutex read and write data
+    SemaphoreHandle_t se_alert; // semaphone to alert for other operations
+};
 extern String WIFI_SSID;
 extern String WIFI_PASS;
 extern String CORE_IOT_TOKEN;
