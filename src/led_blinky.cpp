@@ -25,22 +25,24 @@ void task_temp_blink(void *pvParameter)
       curTemp = shared_data->temperature;
       xSemaphoreGive(shared_data->se_data);
     }
-    if (curTemp < 20)
+    if (xSemaphoreTake(shared_data->se_normal, 0) == pdTRUE)
     {
       digitalWrite(LED_GPIO, !digitalRead(LED_GPIO));
-      vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-    else if (curTemp >= 20 && curTemp <= 35)
-    {
-      digitalWrite(LED_GPIO, !digitalRead(LED_GPIO));
+      xSemaphoreGive(shared_data->se_normal);
       vTaskDelay(pdMS_TO_TICKS(200));
+    }
+    else if (xSemaphoreTake(shared_data->se_warning, TickType_t(0)) == pdTRUE)
+    {
+      digitalWrite(LED_GPIO, !digitalRead(LED_GPIO));
+      xSemaphoreGive(shared_data->se_warning);
+      vTaskDelay(pdMS_TO_TICKS(1000));
     }
     else
     {
-      if (xSemaphoreTake(shared_data->se_alert, 0) == pdTRUE)
+      if (xSemaphoreTake(shared_data->se_critical, 0) == pdTRUE)
       {
         digitalWrite(LED_GPIO, HIGH);
-        xSemaphoreGive(shared_data->se_alert);
+        xSemaphoreGive(shared_data->se_critical);
         vTaskDelay(pdMS_TO_TICKS(100));
       }
     }

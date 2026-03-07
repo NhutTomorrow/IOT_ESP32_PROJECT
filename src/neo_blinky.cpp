@@ -42,21 +42,23 @@ void task_humi_neo(void *pvParameter)
             xSemaphoreGive(shared_data->se_data);
         }
 
-        if (curHumi >= 40.0 && curHumi <= 70)
+        if (xSemaphoreTake(shared_data->se_normal, (TickType_t)0) == pdTRUE)
         {
             strip.setPixelColor(0, strip.Color(0, 255, 0));
+            xSemaphoreGive(shared_data->se_normal);
         }
-        else if (curHumi > 70)
+        else if (xSemaphoreTake(shared_data->se_warning, (TickType_t)0) == pdTRUE)
         {
             strip.setPixelColor(0, strip.Color(0, 0, 255));
+            xSemaphoreGive(shared_data->se_warning);
         }
         else
         {
-            if (xSemaphoreTake(shared_data->se_alert, (TickType_t)0) == pdTRUE)
+            if (xSemaphoreTake(shared_data->se_critical, (TickType_t)0) == pdTRUE)
             {
                 strip.setPixelColor(0, strip.Color(255, 0, 0));
 
-                xSemaphoreGive(shared_data->se_alert);
+                xSemaphoreGive(shared_data->se_critical);
             }
         }
         strip.show();

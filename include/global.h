@@ -12,8 +12,10 @@ struct Sensor_data
 {
     float temperature;
     float humidity;
-    SemaphoreHandle_t se_data;  // semaphone to mutex read and write data
-    SemaphoreHandle_t se_alert; // semaphone to alert for other operations
+    SemaphoreHandle_t se_data; // semaphone to mutex read and write data
+    SemaphoreHandle_t se_critical;
+    SemaphoreHandle_t se_normal;
+    SemaphoreHandle_t se_warning;
 };
 extern String WIFI_SSID;
 extern String WIFI_PASS;
