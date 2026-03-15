@@ -14,35 +14,31 @@ void led_blinky(void *pvParameters)
 }
 void task_temp_blink(void *pvParameter)
 {
-  Sensor_data *shared_data = (Sensor_data *)pvParameter;
+  sensor_data_t shared_data;
+  system_se_t *sys_se = (system_se_t *)pvParameter;
   pinMode(LED_GPIO, OUTPUT);
 
-  float curTemp = -1;
   while (1)
   {
-    if (xSemaphoreTake(shared_data->se_data, (TickType_t)10) == pdTRUE)
-    {
-      curTemp = shared_data->temperature;
-      xSemaphoreGive(shared_data->se_data);
-    }
-    if (xSemaphoreTake(shared_data->se_normal, 0) == pdTRUE)
+
+    if (xSemaphoreTake(sys_se->se_temp_normal, 0) == pdTRUE)
     {
       digitalWrite(LED_GPIO, !digitalRead(LED_GPIO));
-      xSemaphoreGive(shared_data->se_normal);
+      xSemaphoreGive(sys_se->se_temp_normal);
       vTaskDelay(pdMS_TO_TICKS(200));
     }
-    else if (xSemaphoreTake(shared_data->se_warning, TickType_t(0)) == pdTRUE)
+    else if (xSemaphoreTake(sys_se->se_temp_warning, TickType_t(0)) == pdTRUE)
     {
       digitalWrite(LED_GPIO, !digitalRead(LED_GPIO));
-      xSemaphoreGive(shared_data->se_warning);
+      xSemaphoreGive(sys_se->se_temp_warning);
       vTaskDelay(pdMS_TO_TICKS(1000));
     }
     else
     {
-      if (xSemaphoreTake(shared_data->se_critical, 0) == pdTRUE)
+      if (xSemaphoreTake(sys_se->se_temp_critical, 0) == pdTRUE)
       {
         digitalWrite(LED_GPIO, HIGH);
-        xSemaphoreGive(shared_data->se_critical);
+        xSemaphoreGive(sys_se->se_temp_critical);
         vTaskDelay(pdMS_TO_TICKS(100));
       }
     }

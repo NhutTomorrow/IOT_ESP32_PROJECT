@@ -27,38 +27,31 @@ void neo_blinky(void *pvParameters)
 }
 void task_humi_neo(void *pvParameter)
 {
-    Sensor_data *shared_data = (Sensor_data *)pvParameter;
     Adafruit_NeoPixel strip(LED_COUNT, NEO_PIN, NEO_GRB + NEO_KHZ800);
     strip.begin();
     // Set all pixels to off to start
     strip.clear();
     strip.show();
-    float curHumi = -1;
+    system_se_t *sys_se = (system_se_t *)pvParameter;
     while (1)
     {
-        if (xSemaphoreTake(shared_data->se_data, 10) == pdTRUE)
-        {
-            curHumi = shared_data->humidity;
-            xSemaphoreGive(shared_data->se_data);
-        }
-
-        if (xSemaphoreTake(shared_data->se_normal, (TickType_t)0) == pdTRUE)
+        if (xSemaphoreTake(sys_se->se_humi_normal, (TickType_t)0) == pdTRUE)
         {
             strip.setPixelColor(0, strip.Color(0, 255, 0));
-            xSemaphoreGive(shared_data->se_normal);
+            xSemaphoreGive(sys_se->se_humi_normal);
         }
-        else if (xSemaphoreTake(shared_data->se_warning, (TickType_t)0) == pdTRUE)
+        else if (xSemaphoreTake(sys_se->se_humi_warning, (TickType_t)0) == pdTRUE)
         {
-            strip.setPixelColor(0, strip.Color(0, 0, 255));
-            xSemaphoreGive(shared_data->se_warning);
+            strip.setPixelColor(0, strip.Color(255, 255, 0));
+            xSemaphoreGive(sys_se->se_humi_warning);
         }
         else
         {
-            if (xSemaphoreTake(shared_data->se_critical, (TickType_t)0) == pdTRUE)
+            if (xSemaphoreTake(sys_se->se_humi_critical, (TickType_t)0) == pdTRUE)
             {
                 strip.setPixelColor(0, strip.Color(255, 0, 0));
 
-                xSemaphoreGive(shared_data->se_critical);
+                xSemaphoreGive(sys_se->se_humi_critical);
             }
         }
         strip.show();

@@ -4,8 +4,8 @@
 #include "neo_blinky.h"
 #include "temp_humi_monitor.h"
 // #include "mainserver.h"
-// #include "tinyml.h"
-#include "coreiot.h"
+#include "tinyml.h"
+// #include "coreiot.h"
 
 // include task
 #include "task_check_info.h"

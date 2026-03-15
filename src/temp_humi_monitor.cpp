@@ -51,39 +51,40 @@ void task_temp_humi_monitor(void *pvParameter)
     lcd.backlight();
     lcd.setCursor(0, 0);
     lcd.print("System Starting");
-    Sensor_data *shared_data = (Sensor_data *)pvParameter;
-    float temp = -1;
-    float humi = -1;
+
+    sensor_data_t receivedData;
+    system_se_t *sys_se = (system_se_t *)pvParameter;
 
     while (1)
     {
-        if (xSemaphoreTake(shared_data->se_data, TickType_t(10)) == pdTRUE)
+        if (xQueueReceive(sys_se->queue_raw_data, &receivedData, portMAX_DELAY) == pdPASS)
         {
-            temp = shared_data->temperature;
-            humi = shared_data->humidity;
-            xSemaphoreGive(shared_data->se_data);
+
+            // Ngay khi dòng code này chạy, receivedData đã chứa đầy đủ số đo
+            Serial.printf("Recieved! TEMP: %.1f, HUMI: %.1f\n",
+                          receivedData.temperature, receivedData.humidity);
+
+            // Tiến hành chạy AI đánh giá dữ liệu ở đây...
         }
-        if (xSemaphoreTake(shared_data->se_normal, portMAX_DELAY) == pdTRUE)
+        if (xSemaphoreTake(sys_se->se_lcd_display, portMAX_DELAY) == pdTRUE)
         {
-            // display STATUS: NORMAL and display value
-            normal_monitor(temp, humi);
-            xSemaphoreGive(shared_data->se_normal);
-        }
-        else if (xSemaphoreTake(shared_data->se_warning, portMAX_DELAY) == pdTRUE)
-        {
-            // display STATUS: CHECK AC and display value
-            alert_monitor(temp, humi);
-            xSemaphoreGive(shared_data->se_critical);
-        }
-        else
-        {
-            if (xSemaphoreTake(shared_data->se_warning, portMAX_DELAY) == pdTRUE)
+            float temp = receivedData.temperature;
+            float humi = receivedData.humidity;
+            if (temp > 35 || humi < 40)
             {
-                // display CRITICAL: OVERHEAT!
                 warning_monitor(temp, humi);
-                xSemaphoreGive(shared_data->se_warning);
             }
+            else if (temp < 30 && humi >= 40 && humi <= 70)
+            {
+                normal_monitor(temp, humi);
+            }
+            else
+            {
+                alert_monitor(temp, humi);
+            }
+            xSemaphoreGive(sys_se->se_lcd_display);
         }
+        vTaskDelay(pdMS_TO_TICKS(3000));
     }
 }
 void normal_monitor(float temp, float humi)
