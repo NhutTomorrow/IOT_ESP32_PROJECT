@@ -17,5 +17,6 @@
         "regex": "cpp",
         "cmath": "cpp"
     },
-    "cmake.sourceDirectory": "D:/STUDY/HK252/IOT/IOT_ESP32_PRO/lib/ArduinoJson/src"
+    "cmake.sourceDirectory": "D:/STUDY/HK252/IOT/IOT_ESP32_PRO/lib/ArduinoJson/src",
+    "git.ignoreLimitWarning": true
 }

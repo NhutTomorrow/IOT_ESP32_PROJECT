@@ -5,8 +5,6 @@
 #include "DHT20.h"
 #include "global.h"
 
-#define SDA_GPIO 13
-#define SCL_GPIO 14 // de tam thoi
 void temp_humi_monitor(void *pvParameters);
 void task_temp_humi_monitor(void *pvParameter);
 void normal_monitor(float temp, float humi);

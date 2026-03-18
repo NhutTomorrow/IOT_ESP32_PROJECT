@@ -3,15 +3,14 @@
 #define __TASK_WEBSERVER_H__
 
 #include <ESPAsyncWebServer.h>
-#include <task_handler.h>
 #include <Preferences.h>
 #include "WiFi.h"
 #include "AsyncTCP.h"
 #include "global.h"
 
 #define AP_SSID "SMART_ESP32_WIFI"
-#define AP_PASSWORD "77777777"
-#define AP_IP IPAddress(192, 68, 4, 1)
+#define AP_PASSWORD "12345678"
+#define AP_IP IPAddress(192, 168, 4, 1)
 #define BOOT_PIN 0
 
 extern AsyncWebServer server;
@@ -86,16 +85,20 @@ static const char HTML_PAGE[] PROGMEM = R"rawhtml(
       <h2>💡 LED Indicator</h2>
       <button class="btn-on"  onclick="send('led:on')">Bật LED</button>
       <button class="btn-off" onclick="send('led:off')">Tắt LED</button>
+      <button class="btn-cfg" style="margin-top:8px"
+              onclick="send('led:auto')">⟳ Auto (Task 1)</button>
     </div>
 
     <div class="card">
       <h2>🌈 NeoPixel RGB</h2>
-      <button class="btn-off" onclick="send('neo:255,0,0')">🔴 Đỏ</button>
-      <button class="btn-on"  onclick="send('neo:0,255,0')">🟢 Xanh</button>
+      <button class="btn-off"  onclick="send('neo:255,0,0')">🔴 Đỏ</button>
+      <button class="btn-on"   onclick="send('neo:0,255,0')">🟢 Xanh</button>
       <button class="btn-blue" onclick="send('neo:0,0,255')">🔵 Lam</button>
-      <button class="btn-off" onclick="send('neo:0,0,0')">⚫ Tắt</button>
+      <button class="btn-off"  onclick="send('neo:0,0,0')">⚫ Tắt</button>
+      <button class="btn-cfg"  style="margin-top:8px"
+              onclick="send('neo:auto')">⟳ Auto (Task 2)</button>
     </div>
-
+    
     <div class="card">
       <span id="status-dot"></span>
       <small id="ws-status">Đang kết nối...</small>

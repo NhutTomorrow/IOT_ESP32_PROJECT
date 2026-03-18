@@ -2,7 +2,6 @@
 #include "LiquidCrystal_I2C.h"
 #include "DHT20.h"
 
-#define SDA_I2C 11
-#define SCL_I2C 12
-DHT20 dht20;
-void task_read_sensor(void *pvParameter);
+extern DHT20 dht20;
+extern void task_read_sensor(void *pvParameter);
+extern void init_task_read();

@@ -1,58 +1,17 @@
 #include "temp_humi_monitor.h"
-DHT20 dht20;
+
 LiquidCrystal_I2C lcd(33, 16, 2);
-
-void temp_humi_monitor(void *pvParameters)
-{
-
-    Wire.begin(11, 12); // 11: GPIO selected SDA in I2C and 12 is GPIO selected SCL in I2C
-    Serial.begin(115200);
-    dht20.begin();
-
-    while (1)
-    {
-        /* code */
-
-        dht20.read();
-        // Reading temperature in Celsius
-        float temperature = dht20.getTemperature();
-        // Reading humidity
-        float humidity = dht20.getHumidity();
-
-        // Check if any reads failed and exit early
-        if (isnan(temperature) || isnan(humidity))
-        {
-            Serial.println("Failed to read from DHT sensor!");
-            temperature = humidity = -1;
-            // return;
-        }
-
-        // Update global variables for temperature and humidity
-        glob_temperature = temperature;
-        glob_humidity = humidity;
-
-        // Print the results
-
-        Serial.print("Humidity: ");
-        Serial.print(humidity);
-        Serial.print("%  Temperature: ");
-        Serial.print(temperature);
-        Serial.println("°C");
-
-        vTaskDelay(5000);
-    }
-}
 
 void task_temp_humi_monitor(void *pvParameter)
 {
     Wire.begin(11, 12); // 11: GPIO selected SDA in I2C and 12 is GPIO selected SCL in I2C
     Serial.begin(115200);
-    dht20.begin();
+    lcd.begin();
     lcd.backlight();
     lcd.setCursor(0, 0);
     lcd.print("System Starting");
 
-    sensor_data_t receivedData;
+    sensor_data_t receivedData = {0};
     system_se_t *sys_se = (system_se_t *)pvParameter;
 
     while (1)
@@ -65,24 +24,25 @@ void task_temp_humi_monitor(void *pvParameter)
                           receivedData.temperature, receivedData.humidity);
 
             // Tiến hành chạy AI đánh giá dữ liệu ở đây...
-        }
-        if (xSemaphoreTake(sys_se->se_lcd_display, portMAX_DELAY) == pdTRUE)
-        {
-            float temp = receivedData.temperature;
-            float humi = receivedData.humidity;
-            if (temp > 35 || humi < 40)
+
+            if (xSemaphoreTake(sys_se->se_i2c, portMAX_DELAY) == pdTRUE)
             {
-                warning_monitor(temp, humi);
+                float temp = receivedData.temperature;
+                float humi = receivedData.humidity;
+                if (temp > 35 || humi < 40)
+                {
+                    warning_monitor(temp, humi);
+                }
+                else if (temp < 30 && humi >= 40 && humi <= 70)
+                {
+                    normal_monitor(temp, humi);
+                }
+                else
+                {
+                    alert_monitor(temp, humi);
+                }
+                xSemaphoreGive(sys_se->se_i2c);
             }
-            else if (temp < 30 && humi >= 40 && humi <= 70)
-            {
-                normal_monitor(temp, humi);
-            }
-            else
-            {
-                alert_monitor(temp, humi);
-            }
-            xSemaphoreGive(sys_se->se_lcd_display);
         }
         vTaskDelay(pdMS_TO_TICKS(3000));
     }

@@ -6,18 +6,21 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 
-extern float glob_temperature;
-extern float glob_humidity;
+// extern float glob_temperature;
+// extern float glob_humidity;
 
-extern String WIFI_SSID;
-extern String WIFI_PASS;
-extern String CORE_IOT_TOKEN;
-extern String CORE_IOT_SERVER;
-extern String CORE_IOT_PORT;
+// extern String WIFI_SSID;
+// extern String WIFI_PASS;
+// extern String CORE_IOT_TOKEN;
+// extern String CORE_IOT_SERVER;
+// extern String CORE_IOT_PORT;
 
-extern boolean isWifiConnected;
-extern SemaphoreHandle_t xBinarySemaphoreInternet;
-
+// extern boolean isWifiConnected;
+// extern SemaphoreHandle_t xBinarySemaphoreInternet;
+#define WINDOW_SIZE 5
+#define COLLECT_MS 2000 // đọc mỗi 500ms
+#define SDA_I2C 11
+#define SCL_I2C 12
 typedef struct
 {
     float temperature;
@@ -42,7 +45,7 @@ typedef struct
     char ssid[64];
     char pass[64];
     char token[128]; // CoreIOT Device Token
-} wifi_config_t;
+} wifi_info_t;
 // ── Trạng thái WiFi ──
 typedef enum
 {
@@ -57,7 +60,17 @@ typedef struct
     int label;        // 0=normal, 1=warning, 2=critical
     float confidence; // độ chính xác 0.0 ~ 1.0
 } ml_result_t;
+typedef enum
+{
+    LED_MODE_AUTO,  // Task 1 điều khiển theo nhiệt độ
+    LED_MODE_MANUAL // Web điều khiển, Task 1 bị block
+} led_mode_t;
 
+typedef enum
+{
+    NEO_MODE_AUTO,  // Task 2 điều khiển theo độ ẩm
+    NEO_MODE_MANUAL // Web điều khiển, Task 2 bị block
+} neo_mode_t;
 typedef struct
 {
     // ══════════════════════════════
@@ -77,13 +90,11 @@ typedef struct
     // ══════════════════════════════
     //  SEMAPHORE TASK 3 — LCD Display
     // ══════════════════════════════
-    SemaphoreHandle_t se_lcd_display;
+    SemaphoreHandle_t se_i2c;
 
     // ══════════════════════════════
     //  SEMAPHORE TASK 4 — Web Server
     // ══════════════════════════════
-    SemaphoreHandle_t se_LED1; // Mutex bảo vệ hardware LED1
-    SemaphoreHandle_t se_LED2; // Mutex bảo vệ NeoPixel (LED2)
     SemaphoreHandle_t se_wifi; // Binary: báo hiệu WiFi đã kết nối xong
                                // taskWifi → Give / taskCloud → Take
 
@@ -91,12 +102,14 @@ typedef struct
     //  SEMAPHORE TASK 5 — TinyML
     // ══════════════════════════════
     SemaphoreHandle_t se_ml_ready; // Binary: báo inference xong
-                                   // taskML → Give / taskLCD, taskCloud → Take
+    // taskML → Give / taskLCD, taskCloud → Take
 
     // ══════════════════════════════
     //  QUEUE — vận chuyển dữ liệu
     // ══════════════════════════════
-
+    // Thêm vào struct
+    QueueHandle_t queue_led_mode; // Web → taskLED
+    QueueHandle_t queue_neo_mode; // Web → taskNeo
     // Task 1, 2, 3 (đã có)
     QueueHandle_t queue_raw_data; // Sensor → Task1, Task2, Task3, Task5
 
@@ -107,7 +120,6 @@ typedef struct
     QueueHandle_t queue_wifi_status; // taskWifi → Web, Cloud (wifi_status_t)
 
     // Task 5 — kết quả ML
-    QueueHandle_t queue_ml_result; // taskML → taskLCD, taskCloud (ml_result_t)
 
     // Task 6 — publish lên CoreIOT (đã có)
     QueueHandle_t queue_publish_data; // taskSensor+ML → taskCloud

@@ -39,6 +39,11 @@ static void onWsEvent(AsyncWebSocket *server,
                       AwsEventType type,
                       void *arg, uint8_t *data, size_t len)
 {
+    if (_sys == nullptr)
+    {
+        Serial.printf("sys is null \n");
+        return;
+    }
     if (type == WS_EVT_CONNECT)
     {
         Serial.printf("WS client #%u connected\n", client->id());
@@ -50,21 +55,62 @@ static void onWsEvent(AsyncWebSocket *server,
     else if (type == WS_EVT_DATA)
     {
         // Parse lệnh từ browser: "led:on", "neo:255,0,0"
-        String msg = String((char *)data).substring(0, len);
+        char *buf = (char *)malloc(len + 1);
+        if (!buf)
+            return;
+        memcpy(buf, data, len);
+        buf[len] = '\0';
+        String msg = String(buf);
+        free(buf);
         Serial.println("WS recv: " + msg);
 
         if (msg.startsWith("led:"))
         {
-            led_cmd_t cmd;
-            cmd.state = (msg.substring(4) == "on");
-            xQueueOverwrite(_sys->queue_led_cmd, &cmd);
+            String action = msg.substring(4);
+            if (action == "auto")
+            {
+                led_mode_t mode = LED_MODE_AUTO;
+                xQueueOverwrite(_sys->queue_led_mode, &mode);
+                Serial.printf("SWITCH LED TO AUTO MODE");
+            }
+            else
+            {
+                // ✅ Thêm log kiểm tra
+                Serial.printf("[DEBUG] queue_led_cmd handle: %p\n", _sys->queue_led_cmd);
+                Serial.printf("[DEBUG] queue_led_mode handle: %p\n", _sys->queue_led_mode);
+
+                if (_sys->queue_led_cmd == NULL)
+                {
+                    Serial.printf("[ERROR] queue_led_cmd is NULL → skip\n");
+                    return;
+                }
+                led_cmd_t cmd;
+                cmd.state = (action == "on");
+                led_mode_t mode = LED_MODE_MANUAL;
+                xQueueOverwrite(_sys->queue_led_mode, &mode);
+                xQueueOverwrite(_sys->queue_led_cmd, &cmd);
+                Serial.printf("SWITCH LED TO MANUAL MODE");
+            }
         }
         else if (msg.startsWith("neo:"))
         {
-            neo_cmd_t cmd = {0, 0, 0};
-            sscanf(msg.substring(4).c_str(), "%hhu,%hhu,%hhu",
-                   &cmd.r, &cmd.g, &cmd.b);
-            xQueueOverwrite(_sys->queue_neo_cmd, &cmd);
+            String action = msg.substring(4);
+            if (action == "auto")
+            {
+                neo_mode_t mode = NEO_MODE_AUTO;
+                xQueueOverwrite(_sys->queue_neo_mode, &mode);
+                Serial.printf("SWITCH NEO TO AUTO MODE");
+            }
+            else
+            {
+                neo_cmd_t cmd = {0, 0, 0};
+                sscanf(msg.substring(4).c_str(), "%hhu,%hhu,%hhu",
+                       &cmd.r, &cmd.g, &cmd.b);
+                neo_mode_t mode = NEO_MODE_MANUAL;
+                xQueueOverwrite(_sys->queue_neo_mode, &mode);
+                xQueueOverwrite(_sys->queue_neo_cmd, &cmd);
+                Serial.printf("SWITCH NEO TO MANUAL MODE");
+            }
         }
     }
 }
@@ -77,7 +123,7 @@ static void setupRoutes(system_se_t *sys)
 
     // Trang chính
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *req)
-              { req->send_P(200, "text/html", HTML_PAGE); });
+              { req->send(200, "text/html", HTML_PAGE); });
 
     // Trang settings
     server.on("/settings", HTTP_GET, [](AsyncWebServerRequest *req)
@@ -100,7 +146,7 @@ static void setupRoutes(system_se_t *sys)
             return;
         }
 
-        wifi_config_t cfg;
+        wifi_info_t cfg;
         strlcpy(cfg.ssid,  req->getParam("ssid")->value().c_str(),  64);
         strlcpy(cfg.pass,  req->getParam("pass")->value().c_str(),  64);
         strlcpy(cfg.token, req->getParam("token")->value().c_str(), 128);
@@ -123,9 +169,9 @@ static void setupRoutes(system_se_t *sys)
     Serial.println("Async server started");
 }
 
-void task_webserver(void *pvParam)
+void task_websever(void *pvParameter)
 {
-    system_se_t *sys = (system_se_t *)pvParam;
+    system_se_t *sys = (system_se_t *)pvParameter;
     _sys = sys;
 
     bool connecting = false;
@@ -139,27 +185,41 @@ void task_webserver(void *pvParam)
     strlcpy(saved_ssid, prefs.getString("ssid", "").c_str(), 64);
     strlcpy(saved_pass, prefs.getString("pass", "").c_str(), 64);
     prefs.end();
-
+    Serial.printf("Load old config from Flash!!!");
     // Khởi động WiFi
     if (strlen(saved_ssid) > 0)
     {
         WiFi.mode(WIFI_AP_STA);
         WiFi.softAPConfig(AP_IP, AP_IP, IPAddress(255, 255, 255, 0));
         WiFi.softAP(AP_SSID, AP_PASSWORD);
+        delay(100);
         WiFi.begin(saved_ssid, saved_pass);
         connecting = true;
         connectStart = millis();
+        Serial.printf("INIT WIFI WITH AP AND STA MODE");
+        if (WiFi.softAP(AP_SSID, AP_PASSWORD))
+        {
+            Serial.printf("AP OK - SSID: %s IP: %s\n",
+                          AP_SSID,
+                          WiFi.softAPIP().toString().c_str());
+        }
+        else
+        {
+            Serial.printf("AP FAILED!\n"); // ← nếu in cái này thì vấn đề ở chỗ khác
+        }
     }
     else
     {
         WiFi.mode(WIFI_AP);
         WiFi.softAPConfig(AP_IP, AP_IP, IPAddress(255, 255, 255, 0));
         WiFi.softAP(AP_SSID, AP_PASSWORD);
+        Serial.printf("ACCESS WIFI FAILED");
+        Serial.printf("SWITCH TO AP AND ENTER NEW WIFI FROM WEB AT 192.168.4.1");
     }
 
     setupRoutes(sys);
 
-    wifi_config_t newCfg;
+    wifi_info_t newCfg;
     uint32_t lastPush = 0;
 
     for (;;)
@@ -167,12 +227,12 @@ void task_webserver(void *pvParam)
         // ── 1. Nhận config WiFi mới ──
         if (xQueueReceive(sys->queue_wifi_config, &newCfg, 0) == pdTRUE)
         {
-            WiFi.mode(WIFI_AP_STA);
-            WiFi.softAPConfig(AP_IP, AP_IP, IPAddress(255, 255, 255, 0)); // subnet mask to define how many bits for networks how many bits for host
-            WiFi.softAP(AP_SSID, AP_PASSWORD);
+            // WiFi.mode(WIFI_AP_STA);
+            WiFi.disconnect();
             WiFi.begin(newCfg.ssid, newCfg.pass);
             connecting = true;
             connectStart = millis();
+            Serial.printf("Get new confg wifi from web sever");
         }
 
         // ── 2. Theo dõi kết nối STA ──
@@ -180,6 +240,7 @@ void task_webserver(void *pvParam)
         {
             if (WiFi.status() == WL_CONNECTED)
             {
+
                 Serial.println("STA: " + WiFi.localIP().toString());
                 wifi_status_t st = WIFI_CONNECTED;
                 xQueueOverwrite(sys->queue_wifi_status, &st);
@@ -193,6 +254,7 @@ void task_webserver(void *pvParam)
                 wifi_status_t st = WIFI_FAILED;
                 xQueueOverwrite(sys->queue_wifi_status, &st);
                 connecting = false;
+                Serial.printf("Access continute fail, please enter from web again");
             }
         }
 
@@ -207,16 +269,17 @@ void task_webserver(void *pvParam)
             wifi_status_t wst = WIFI_DISCONNECTED;
             xQueuePeek(sys->queue_wifi_status, &wst, 0);
 
-            String mlStr = (data.ml_status == 0) ? "Normal" : (data.ml_status == 1) ? "⚠ Warning"
-                                                                                    : "🚨 Critical";
+            const char *mlStr = (data.ml_status == 0) ? "Normal" : (data.ml_status == 1) ? "⚠ Warning"
+                                                                                         : "🚨 Critical";
 
             // Build JSON push xuống tất cả browser đang mở
-            String json = "{\"temp\":" + String(data.temperature, 1) +
-                          ",\"hum\":" + String(data.humidity, 1) +
-                          ",\"ml\":\"" + mlStr + "\"" +
-                          ",\"wifi\":" + (wst == WIFI_CONNECTED ? "true" : "false") +
-                          "}";
-
+            char json[128];
+            snprintf(json, sizeof(json),
+                     "{\"temp\":%.1f,\"hum\":%.1f,\"ml\":\"%s\",\"wifi\":%s}",
+                     data.temperature,
+                     data.humidity,
+                     mlStr,
+                     (wst == WIFI_CONNECTED) ? "true" : "false");
             ws.textAll(json);    // ← push tới mọi client
             ws.cleanupClients(); // dọn client đã ngắt
         }

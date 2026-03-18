@@ -1,120 +1,149 @@
 
 #include "task_core_iot.h"
-
-constexpr uint32_t MAX_MESSAGE_SIZE = 1024U;
-
-WiFiClient wifiClient;
-Arduino_MQTT_Client mqttClient(wifiClient);
-ThingsBoard tb(mqttClient, MAX_MESSAGE_SIZE);
-
-constexpr char LED_STATE_ATTR[] = "ledState";
-
-volatile int ledMode = 0;
-volatile bool ledState = false;
-
-constexpr uint16_t BLINKING_INTERVAL_MS_MIN = 10U;
-constexpr uint16_t BLINKING_INTERVAL_MS_MAX = 60000U;
-volatile uint16_t blinkingInterval = 1000U;
-
-constexpr int16_t telemetrySendInterval = 10000U;
-
-constexpr std::array<const char *, 2U> SHARED_ATTRIBUTES_LIST = {
-    LED_STATE_ATTR,
-};
-
-void processSharedAttributes(const Shared_Attribute_Data &data)
+// ════════════════════════════════
+//  Build JSON payload
+// ════════════════════════════════
+static void buildPayload(sensor_data_t *data,
+                         char *buf, size_t len)
 {
-    for (auto it = data.begin(); it != data.end(); ++it)
+    const char *mlStr = (data->ml_status == 0) ? "Normal" : (data->ml_status == 1) ? "Noisy"
+                                                                                   : "Unreliable";
+
+    snprintf(buf, len,
+             "{"
+             "\"temperature\":%.1f,"
+             "\"humidity\":%.1f,"
+             "\"ml_status\":\"%s\""
+             "}",
+             data->temperature,
+             data->humidity,
+             mlStr);
+}
+
+// ════════════════════════════════
+//  RTOS Task
+// ════════════════════════════════
+void task_cloud(void *pvParameter)
+{
+    system_se_t *sys_se = (system_se_t *)pvParameter;
+
+    WiFiClient wifiClient;
+    PubSubClient mqtt(wifiClient);
+    mqtt.setServer(MOSQUITTO_HOST, MOSQUITTO_PORT);
+    mqtt.setKeepAlive(60);
+    mqtt.setSocketTimeout(10);
+
+    // ── Hàm kết nối Mosquitto ──
+    // Anonymous — không cần token
+    // Token được Node-RED thêm vào khi đẩy lên CoreIOT
+    auto connectMQTT = [&]() -> bool
     {
-        // if (strcmp(it->key().c_str(), BLINKING_INTERVAL_ATTR) == 0)
+        int retry = 0;
+        while (!mqtt.connected() && retry < 5)
+        {
+            Serial.printf("[Cloud] Connecting Mosquitto"
+                          " (try %d/5)...\n",
+                          retry + 1);
+
+            if (mqtt.connect("ESP32_Group01"))
+            {
+                Serial.println("[Cloud] Mosquitto connected!");
+                Serial.println("[Cloud] Topic: " TOPIC_DATA);
+                return true;
+            }
+
+            Serial.printf("[Cloud] Failed rc=%d → retry\n",
+                          mqtt.state());
+            retry++;
+            vTaskDelay(pdMS_TO_TICKS(2000));
+        }
+        Serial.println("[Cloud] Cannot connect Mosquitto!");
+        return false;
+    };
+
+    // ── Chờ WiFi từ taskWeb ──
+    Serial.println("[Cloud] Waiting for WiFi...");
+    xSemaphoreTake(sys_se->se_wifi, portMAX_DELAY);
+    Serial.println("[Cloud] WiFi ready → connect Mosquitto");
+
+    connectMQTT();
+
+    // ── Nhận token mới từ Web (nếu cần dùng sau) ──
+    // cloud_config_t newCfg;
+
+    sensor_data_t data;
+    char payload[256];
+    uint32_t lastPublish = 0;
+
+    while (1)
+    {
+        // ── 1. Nhận token mới từ Web settings ──
+        // if (xQueueReceive(sys_se->queue_new_token,
+        //                   &newCfg, 0) == pdTRUE)
         // {
-        //     const uint16_t new_interval = it->value().as<uint16_t>();
-        //     if (new_interval >= BLINKING_INTERVAL_MS_MIN && new_interval <= BLINKING_INTERVAL_MS_MAX)
-        //     {
-        //         blinkingInterval = new_interval;
-        //         Serial.print("Blinking interval is set to: ");
-        //         Y
-        //             Serial.println(new_interval);
-        //     }
+        //     // Token được Node-RED dùng để đẩy CoreIOT
+        //     // ESP32 không cần dùng trực tiếp
+        //     // Nhưng lưu lại để log
+        //     Serial.println("[Cloud] Token updated in Node-RED");
         // }
-        // if (strcmp(it->key().c_str(), LED_STATE_ATTR) == 0)
-        // {
-        //     ledState = it->value().as<bool>();
-        // digitalWrite(LED_PIN, ledState);
-        // Serial.print("LED state is set to: ");
-        // Serial.println(ledState);
-        // }
-    }
-}
 
-RPC_Response setLedSwitchValue(const RPC_Data &data)
-{
-    Serial.println("Received Switch state");
-    bool newState = data;
-    Serial.print("Switch state change: ");
-    Serial.println(newState);
-    return RPC_Response("setLedSwitchValue", newState);
-}
+        // ── 2. Kiểm tra WiFi ──
+        wifi_status_t wst = WIFI_DISCONNECTED;
+        xQueuePeek(sys_se->queue_wifi_status, &wst, 0);
 
-const std::array<RPC_Callback, 1U> callbacks = {
-    RPC_Callback{"setLedSwitchValue", setLedSwitchValue}};
-
-const Shared_Attribute_Callback attributes_callback(&processSharedAttributes, SHARED_ATTRIBUTES_LIST.cbegin(), SHARED_ATTRIBUTES_LIST.cend());
-const Attribute_Request_Callback attribute_shared_request_callback(&processSharedAttributes, SHARED_ATTRIBUTES_LIST.cbegin(), SHARED_ATTRIBUTES_LIST.cend());
-
-void CORE_IOT_sendata(String mode, String feed, String data)
-{
-    if (mode == "attribute")
-    {
-        tb.sendAttributeData(feed.c_str(), data);
-    }
-    else if (mode == "telemetry")
-    {
-        float value = data.toFloat();
-        tb.sendTelemetryData(feed.c_str(), value);
-    }
-    else
-    {
-        // handle unknown mode
-    }
-}
-
-void CORE_IOT_reconnect()
-{
-    if (!tb.connected())
-    {
-        if (!tb.connect(CORE_IOT_SERVER.c_str(), CORE_IOT_TOKEN.c_str(), CORE_IOT_PORT.toInt()))
+        if (wst != WIFI_CONNECTED)
         {
-            // Serial.println("Failed to connect");
-            return;
+            Serial.println("[Cloud] WiFi lost → waiting...");
+            xSemaphoreTake(sys_se->se_wifi,
+                           pdMS_TO_TICKS(1000));
+            continue;
         }
 
-        tb.sendAttributeData("macAddress", WiFi.macAddress().c_str());
-
-        Serial.println("Subscribing for RPC...");
-        if (!tb.RPC_Subscribe(callbacks.cbegin(), callbacks.cend()))
+        // ── 3. Reconnect Mosquitto nếu mất ──
+        if (!mqtt.connected())
         {
-            // Serial.println("Failed to subscribe for RPC");
-            return;
+            Serial.println("[Cloud] Mosquitto lost → reconnect");
+            if (!connectMQTT())
+            {
+                vTaskDelay(pdMS_TO_TICKS(5000));
+                continue;
+            }
         }
 
-        if (!tb.Shared_Attributes_Subscribe(attributes_callback))
+        // ── 4. Giữ kết nối MQTT sống ──
+        mqtt.loop();
+
+        // ── 5. Publish mỗi PUBLISH_MS ──
+        if (millis() - lastPublish >= PUBLISH_MS)
         {
-            // Serial.println("Failed to subscribe for shared attribute updates");
-            return;
+            lastPublish = millis();
+
+            // Đọc sensor từ queue
+            // tạm thời ch
+            if (xQueuePeek(sys_se->queue_raw_data,
+                           &data, 0) != pdTRUE)
+            {
+                Serial.println("[Cloud] No sensor data yet");
+                vTaskDelay(pdMS_TO_TICKS(100));
+                continue;
+            }
+
+            // Build payload
+            buildPayload(&data, payload, sizeof(payload));
+
+            // Publish lên Mosquitto → Node-RED nhận
+            if (mqtt.publish(TOPIC_DATA, payload, false))
+            {
+                Serial.printf("[Cloud] Published → %s : %s\n",
+                              TOPIC_DATA, payload);
+            }
+            else
+            {
+                Serial.println("[Cloud] Publish failed!"
+                               " Check Mosquitto.");
+            }
         }
 
-        Serial.println("Subscribe done");
-
-        if (!tb.Shared_Attributes_Request(attribute_shared_request_callback))
-        {
-            // Serial.println("Failed to request for shared attributes");
-            return;
-        }
-        tb.sendAttributeData("localIp", WiFi.localIP().toString().c_str());
-    }
-    else if (tb.connected())
-    {
-        tb.loop();
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }

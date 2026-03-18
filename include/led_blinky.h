@@ -5,6 +5,6 @@
 #define LED_GPIO 48
 void led_blinky(void *pvParameters);
 
-void task_temp_blink(void *pvParameter);
+extern void task_temp_blink(void *pvParameter);
 
 #endif
