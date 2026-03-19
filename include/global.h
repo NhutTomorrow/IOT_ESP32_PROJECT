@@ -120,7 +120,8 @@ typedef struct
     QueueHandle_t queue_wifi_status; // taskWifi → Web, Cloud (wifi_status_t)
 
     // Task 5 — kết quả ML
-
+    QueueHandle_t queue_ml_result;    
+    
     // Task 6 — publish lên CoreIOT (đã có)
     QueueHandle_t queue_publish_data; // taskSensor+ML → taskCloud
 
