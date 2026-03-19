@@ -55,6 +55,7 @@ void normal_monitor(float temp, float humi)
     lcd.setCursor(0, 1);
     lcd.print("T:");
     lcd.print(temp, 1);
+    lcd.write((uint8_t)223); 
     lcd.print("C H:");
     lcd.print(humi, 1);
     lcd.print("%");
