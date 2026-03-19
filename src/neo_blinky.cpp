@@ -32,6 +32,7 @@ void task_humi_neo(void *pvParameter)
     Adafruit_NeoPixel strip(LED_COUNT, NEO_PIN, NEO_GRB + NEO_KHZ800);
     strip.begin();
     strip.clear();
+    strip.setBrightness(10);
     strip.show();
 
     neo_mode_t mode = NEO_MODE_AUTO;
