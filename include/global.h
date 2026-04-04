@@ -26,6 +26,7 @@ typedef struct
     float temperature;
     float humidity;
     int ml_status;
+    uint32_t timestamp_ms;
 } sensor_data_t;
 
 // ── Struct lệnh điều khiển từ Web ──
@@ -62,15 +63,33 @@ typedef struct
 } ml_result_t;
 typedef enum
 {
+    INIT_LED_TEMP,
+    STATE_NORMAL,
+    STATE_WARNING,
+    STATE_CRITICAL,
     LED_MODE_AUTO,  // Task 1 điều khiển theo nhiệt độ
     LED_MODE_MANUAL // Web điều khiển, Task 1 bị block
 } led_mode_t;
 
 typedef enum
 {
+    INIT_HUMI_NEO,
+    STATE_NORMAL_NEO,
+    STATE_WARNING_NEO,
+    STATE_CRITICAL_NEO,
     NEO_MODE_AUTO,  // Task 2 điều khiển theo độ ẩm
     NEO_MODE_MANUAL // Web điều khiển, Task 2 bị block
 } neo_mode_t;
+
+typedef enum
+{
+    INIT_LCD_MONITOR,
+    NORMAL_MONITOR,
+    WARNING_MONITOR,
+    CRITICAL_MONITOR,
+    AUTO_MONITOR,
+    MANUAL_MONITOR
+} lcd_mode_t;
 typedef struct
 {
     // ══════════════════════════════

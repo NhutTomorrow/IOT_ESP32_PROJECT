@@ -118,7 +118,12 @@ void setup()
   Serial.begin(115200);
   // pinMode(BOOT_PIN, INPUT_PULLUP);
   // digitalWrite(BOOT_PIN, 0);
-
+  // thêm tạm để xóa bộ nhớ NVS
+  // Preferences prefs;
+  // prefs.begin("gw", false);
+  // prefs.clear();
+  // prefs.end();
+  // Serial.println("NVS cache cleared!");
   init_system_objects(&sys);
   init_task_read();
 
@@ -126,8 +131,8 @@ void setup()
   xTaskCreate(task_websever, "Web", 8192, &sys, 2, NULL);
   xTaskCreate(task_temp_blink, "LED", 2048, &sys, 2, NULL);
   xTaskCreate(task_humi_neo, "Neo", 2048, &sys, 2, NULL);
-  // xTaskCreate(task_cloud, "Cloud", 4096, &sys, 1, NULL);
-  xTaskCreate(task_temp_humi_monitor, "Monitor", 4096, &sys, 2, NULL);
+  // xTaskCreate(task_coreiot, "Cloud", 4096, &sys, 1, NULL);
+  // xTaskCreate(task_temp_humi_monitor, "Monitor", 4096, &sys, 2, NULL);
 }
 
 void loop()

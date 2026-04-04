@@ -6,5 +6,5 @@
 void led_blinky(void *pvParameters);
 
 extern void task_temp_blink(void *pvParameter);
-
+extern void task_temp_blink_state(void *pvParameter);
 #endif
