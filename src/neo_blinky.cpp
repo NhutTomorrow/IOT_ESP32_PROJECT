@@ -51,11 +51,11 @@ void task_humi_neo(void *pvParameter)
         }
 
         // ── 2. Timeout manual → tự về Auto ──
-        if (mode == NEO_MODE_MANUAL && millis() > manualUntil)
-        {
-            mode = NEO_MODE_AUTO;
-            Serial.println("Neo: manual timeout → auto");
-        }
+        // if (mode == NEO_MODE_MANUAL && millis() > manualUntil)
+        // {
+        //     mode = NEO_MODE_AUTO;
+        //     Serial.println("Neo: manual timeout → auto");
+        // }
 
         // ── 3. Xử lý theo mode ──
         if (mode == NEO_MODE_MANUAL)
