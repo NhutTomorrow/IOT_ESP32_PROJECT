@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Smart Sensor Hub</title>
+  <!-- Font load async: không block render khi AP mode không có internet -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Starfield background -->
+  <canvas id="stars"></canvas>
+
+  <div class="layout">
+
+    <!-- ── HEADER ── -->
+    <header class="header">
+      <div class="header-icon">⬡</div>
+      <div class="header-text">
+        <div class="header-title">SMART SENSOR HUB</div>
+        <div class="header-sub">ESP32 · CONTROL PANEL</div>
+      </div>
+      <div class="ws-indicator" id="ws-indicator">
+        <span class="ws-dot" id="ws-dot"></span>
+        <span id="ws-label">CONNECTING</span>
+      </div>
+    </header>
+
+    <!-- ── SENSOR ROW ── -->
+    <section class="sensor-row">
+      <div class="sensor-card" id="card-temp">
+        <div class="sensor-icon">🌡</div>
+        <div class="sensor-value"><span id="temp">--.-</span><span class="sensor-unit">°C</span></div>
+        <div class="sensor-label">NHIỆT ĐỘ</div>
+        <div class="sensor-bar"><div class="sensor-fill" id="temp-fill"></div></div>
+      </div>
+      <div class="sensor-card" id="card-hum">
+        <div class="sensor-icon">💧</div>
+        <div class="sensor-value"><span id="hum">--.-</span><span class="sensor-unit">%</span></div>
+        <div class="sensor-label">ĐỘ ẨM</div>
+        <div class="sensor-bar"><div class="sensor-fill" id="hum-fill"></div></div>
+      </div>
+      <div class="sensor-card" id="card-ml">
+        <div class="sensor-icon">🤖</div>
+        <div class="sensor-value small" id="ml">--</div>
+        <div class="sensor-label">ML STATUS</div>
+        <div class="status-pip" id="ml-pip"></div>
+      </div>
+      <div class="sensor-card" id="card-wifi">
+        <div class="sensor-icon">📶</div>
+        <div class="sensor-value small" id="wifi-text">Offline</div>
+        <div class="sensor-label">CoreIOT</div>
+        <div class="status-pip" id="wifi-pip"></div>
+      </div>
+    </section>
+
+    <!-- ── LED CONTROL ── -->
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-icon">✦</span>
+        <span class="panel-title">DEVICE CONTROL</span>
+      </div>
+      <div class="toggle-grid">
+        <div class="toggle-card" id="led-card" onclick="toggleLed()">
+          <div class="toggle-ring" id="led-ring">
+            <div class="toggle-dot" id="led-dot"></div>
+          </div>
+          <div class="toggle-label">LED</div>
+          <div class="toggle-state" id="led-state">OFF</div>
+        </div>
+        <div class="toggle-card" id="neo-card-toggle">
+          <div class="toggle-ring" id="neo-ring-indicator">
+            <div class="toggle-dot" id="neo-dot"></div>
+          </div>
+          <div class="toggle-label">NEO</div>
+          <div class="toggle-state" id="neo-state">OFF</div>
+        </div>
+      </div>
+
+      <!-- LED auto -->
+      <button class="auto-btn" onclick="send('led:auto')">
+        <span class="auto-icon">↺</span> LED AUTO MODE
+      </button>
+    </section>
+
+    <!-- ── NEOPIXEL ── -->
+    <section class="panel">
+      <div class="panel-header">
+        <span class="panel-icon">◈</span>
+        <span class="panel-title">NEOPIXEL RGB</span>
+      </div>
+      <div class="color-grid">
+        <button class="color-btn red"  onclick="setNeo(255,0,0)">
+          <span class="color-dot"></span>ĐỎ
+        </button>
+        <button class="color-btn green" onclick="setNeo(0,255,0)">
+          <span class="color-dot"></span>XANH
+        </button>
+        <button class="color-btn blue"  onclick="setNeo(0,0,255)">
+          <span class="color-dot"></span>LAM
+        </button>
+        <button class="color-btn off"   onclick="setNeo(0,0,0)">
+          <span class="color-dot"></span>TẮT
+        </button>
+      </div>
+
+      <!-- Custom color picker -->
+      <div class="custom-color">
+        <label class="custom-label">CUSTOM</label>
+        <input type="color" id="colorpicker" value="#00ffcc"
+               oninput="previewColor(this.value)">
+        <button class="apply-btn" onclick="applyCustomColor()">APPLY</button>
+      </div>
+
+      <button class="auto-btn" onclick="send('neo:auto')">
+        <span class="auto-icon">↺</span> NEO AUTO MODE
+      </button>
+    </section>
+
+    <!-- ── FOOTER ── -->
+    <footer class="footer">
+      <button class="settings-btn" onclick="window.location='/settings'">
+        ⚙ CÀI ĐẶT WIFI & TOKEN
+      </button>
+    </footer>
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -7,6 +7,6 @@
 #define LED_COUNT 1
 
 void neo_blinky(void *pvParameters);
-void task_humi_neo(void *pvParameter);
-
+extern void task_humi_neo(void *pvParameter);
+extern void task_humi_neo_state(void *pvParameter);
 #endif

@@ -1,0 +1,70 @@
+{
+  "broker": {
+    "name": "Local Mosquitto",
+    "host": "host.docker.internal",
+    "port": 1883,
+    "clientId": "TBGateway-01",
+    "version": 3,
+    "security": {
+      "type": "anonymous"
+    }
+  },
+  "dataMapping": [
+    {
+      "topicFilter": "devices/+/telemetry",
+      "subscriptionQos": 0,
+      "converter": {
+        "type": "json",
+        "deviceInfo": {
+          "deviceNameExpression": "(?<=devices/)(.*?)(?=/telemetry)",
+          "deviceNameExpressionSource": "topic",
+          "deviceProfileExpression": "ESP32_SENSOR",
+          "deviceProfileExpressionSource": "constant"
+        },
+        "sendDataOnlyOnChange": false,
+        "timeout": 60000,
+        "attributes": [],
+        "timeseries": [
+          {
+            "type": "double",
+            "key": "temperature",
+            "value": "${temperature}"
+          },
+          {
+            "type": "double",
+            "key": "humidity",
+            "value": "${humidity}"
+          },
+          {
+            "type": "integer",
+            "key": "ml_status",
+            "value": "${ml_status}"
+          },
+          {
+            "type": "integer",
+            "key": "time_stamp",
+            "value": "${time_stamp}"
+          }
+        ]
+      }
+    }
+  ],
+  "connectRequests": [
+    {
+      "topicFilter": "devices/+/connect",
+      "deviceNameExpression": "(?<=devices/)(.*?)(?=/connect)",
+      "deviceNameExpressionSource": "topic"
+    }
+  ],
+  "disconnectRequests": [
+    {
+      "topicFilter": "devices/+/disconnect",
+      "deviceNameExpression": "(?<=devices/)(.*?)(?=/disconnect)",
+      "deviceNameExpressionSource": "topic"
+    }
+  ],
+  "attributeRequests": [],
+  "attributeUpdates": [],
+  "serverSideRpc": [],
+  "id": "2c12683c-a371-4a75-a849-c2689e1d12e0"
+}
