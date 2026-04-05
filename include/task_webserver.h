@@ -7,16 +7,24 @@
 #include "WiFi.h"
 #include "AsyncTCP.h"
 #include "global.h"
-
+#include <LittleFS.h>
 #define AP_SSID "SMART_ESP32_WIFI"
 #define AP_PASSWORD "12345678"
 #define AP_IP IPAddress(192, 168, 4, 1)
 #define BOOT_PIN 0
+#define STA_TIMEOUT_MS 10000
+#define WS_PUSH_INTERVAL_MS 2000
 
 extern AsyncWebServer server;
 extern AsyncWebSocket ws;
 
-static const char HTML_PAGE[] PROGMEM = R"rawhtml(
+extern web_wifi_t wifi_state;
+
+// ─────────────────────────────────────────────
+//  PROGMEM fallback — HTML nhúng trong firmware
+//  Chỉ dùng khi LittleFS không có file
+// ─────────────────────────────────────────────
+static const char HTML_PAGE_FALLBACK[] PROGMEM = R"rawhtml(
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -49,7 +57,6 @@ static const char HTML_PAGE[] PROGMEM = R"rawhtml(
     .btn-on    { background:#2ecc71; color:#000; }
     .btn-off   { background:#e74c3c; color:#fff; }
     .btn-blue  { background:#3498db; color:#fff; }
-    .btn-neo   { background:#9b59b6; color:#fff; }
     .btn-cfg   { width:100%; background:#2c3e50; color:#fff; margin-top:4px; }
     #status-dot {
       display:inline-block; width:10px; height:10px;
@@ -57,12 +64,20 @@ static const char HTML_PAGE[] PROGMEM = R"rawhtml(
       margin-right:6px; transition: background .5s;
     }
     #status-dot.connected { background:#2ecc71; }
+    .fallback-banner {
+      background:#2c1a00; border:1px solid #f39c12;
+      border-radius:8px; padding:8px 12px;
+      font-size:.75em; color:#f39c12; text-align:center;
+      margin-bottom:12px; max-width:480px; margin:0 auto 12px;
+    }
   </style>
 </head>
 <body>
+  <div class="fallback-banner">
+    ⚠️ Đang dùng giao diện dự phòng (PROGMEM). Upload LittleFS để dùng UI đầy đủ.
+  </div>
   <h1>🌡 Smart Sensor Hub</h1>
   <div class="grid">
-
     <div class="card half">
       <h2>🌡 Nhiệt độ</h2>
       <div class="value"><span id="temp">--</span> °C</div>
@@ -71,7 +86,6 @@ static const char HTML_PAGE[] PROGMEM = R"rawhtml(
       <h2>💧 Độ ẩm</h2>
       <div class="value"><span id="hum">--</span> %</div>
     </div>
-
     <div class="card half">
       <h2>📶 CoreIOT</h2>
       <span id="wifi-badge" class="badge offline">Offline ❌</span>
@@ -80,83 +94,62 @@ static const char HTML_PAGE[] PROGMEM = R"rawhtml(
       <h2>🤖 ML Status</h2>
       <div class="value" id="ml" style="font-size:1em">--</div>
     </div>
-
     <div class="card">
       <h2>💡 LED Indicator</h2>
       <button class="btn-on"  onclick="send('led:on')">Bật LED</button>
       <button class="btn-off" onclick="send('led:off')">Tắt LED</button>
-      <button class="btn-cfg" style="margin-top:8px"
-              onclick="send('led:auto')">⟳ Auto (Task 1)</button>
+      <button class="btn-cfg" style="margin-top:8px" onclick="send('led:auto')">⟳ Auto</button>
     </div>
-
     <div class="card">
       <h2>🌈 NeoPixel RGB</h2>
       <button class="btn-off"  onclick="send('neo:255,0,0')">🔴 Đỏ</button>
       <button class="btn-on"   onclick="send('neo:0,255,0')">🟢 Xanh</button>
       <button class="btn-blue" onclick="send('neo:0,0,255')">🔵 Lam</button>
       <button class="btn-off"  onclick="send('neo:0,0,0')">⚫ Tắt</button>
-      <button class="btn-cfg"  style="margin-top:8px"
-              onclick="send('neo:auto')">⟳ Auto (Task 2)</button>
+      <button class="btn-cfg"  style="margin-top:8px" onclick="send('neo:auto')">⟳ Auto</button>
     </div>
-    
     <div class="card">
       <span id="status-dot"></span>
       <small id="ws-status">Đang kết nối...</small>
-      <button class="btn-cfg" onclick="window.location='/settings'">
-        ⚙️ Cài đặt WiFi & Token
-      </button>
+      <button class="btn-cfg" onclick="window.location='/settings'">⚙️ Cài đặt WiFi & Token</button>
     </div>
   </div>
-
   <script>
     let ws;
-
     function initWS() {
       ws = new WebSocket('ws://' + location.hostname + '/ws');
-
       ws.onopen = () => {
-        document.getElementById('ws-status').innerText  = 'Đã kết nối';
+        document.getElementById('ws-status').innerText = 'Đã kết nối';
         document.getElementById('status-dot').classList.add('connected');
       };
-
-      // ── Nhận data từ ESP32 ──
       ws.onmessage = (e) => {
         try {
           const d = JSON.parse(e.data);
-          if (d.temp !== undefined)
-            document.getElementById('temp').innerText = d.temp;
-          if (d.hum  !== undefined)
-            document.getElementById('hum').innerText  = d.hum;
-          if (d.ml   !== undefined)
-            document.getElementById('ml').innerText   = d.ml;
+          if (d.temp !== undefined) document.getElementById('temp').innerText = d.temp;
+          if (d.hum  !== undefined) document.getElementById('hum').innerText  = d.hum;
+          if (d.ml   !== undefined) document.getElementById('ml').innerText   = d.ml;
           if (d.wifi !== undefined) {
-            let badge = document.getElementById('wifi-badge');
-            badge.className = 'badge ' + (d.wifi ? 'online' : 'offline');
-            badge.innerText = d.wifi ? 'Online ✅' : 'Offline ❌';
+            let b = document.getElementById('wifi-badge');
+            b.className = 'badge ' + (d.wifi ? 'online' : 'offline');
+            b.innerText = d.wifi ? 'Online ✅' : 'Offline ❌';
           }
-        } catch(err) {}
+        } catch(e) {}
       };
-
       ws.onclose = () => {
         document.getElementById('ws-status').innerText = 'Mất kết nối — thử lại...';
         document.getElementById('status-dot').classList.remove('connected');
-        // Tự reconnect sau 2s
         setTimeout(initWS, 2000);
       };
     }
-
-    // ── Gửi lệnh lên ESP32 qua WebSocket ──
     function send(msg) {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(msg);
-      }
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(msg);
     }
-
     initWS();
   </script>
 </body>
 </html>
 )rawhtml";
+
 static const char SETTINGS_HTML[] PROGMEM = R"rawhtml(
 <!DOCTYPE html>
 <html lang="vi">
@@ -373,4 +366,5 @@ function doReset(){
 )rawhtml";
 
 extern void task_websever(void *pvParameter);
+extern void task_websever_new(void *pvParameter);
 #endif

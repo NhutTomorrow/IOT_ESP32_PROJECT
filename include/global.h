@@ -90,6 +90,14 @@ typedef enum
     AUTO_MONITOR,
     MANUAL_MONITOR
 } lcd_mode_t;
+typedef enum
+{
+    WEB_WIFI_INIT,
+    WEB_WIFI_CONNECTING,
+    WEB_WIFI_RECONNECTING,
+    WEB_WIFI_AP,
+    WEB_WIFI_CONNECTED
+} web_wifi_t;
 typedef struct
 {
     // ══════════════════════════════
