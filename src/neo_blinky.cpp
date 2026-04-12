@@ -95,81 +95,91 @@ void task_humi_neo_state(void *pvParameter)
     system_se_t *sys_se = (system_se_t *)pvParameter;
     Adafruit_NeoPixel strip(LED_COUNT, NEO_PIN, NEO_GRB + NEO_KHZ800);
     uint32_t manualUntil = 0;
-    switch (neoMode)
+    while (1)
     {
-    case INIT_HUMI_NEO:
+        switch (neoMode)
+        {
+        case INIT_HUMI_NEO:
 
-        strip.begin();
-        strip.clear();
-        strip.setBrightness(10);
-        strip.show();
+            strip.begin();
+            strip.clear();
+            strip.setBrightness(10);
+            strip.show();
 
-        Serial.printf("init Task Neo success!!!");
-        neoMode = NEO_MODE_AUTO;
-        break;
-    case NEO_MODE_AUTO:
-        if (xSemaphoreTake(sys_se->se_humi_normal, 0) == pdTRUE)
-        {
-            neoMode = STATE_NORMAL_NEO;
-        }
-        else if (xSemaphoreTake(sys_se->se_humi_warning, 0) == pdTRUE)
-        {
-            neoMode = STATE_WARNING_NEO;
-        }
-        else if (xSemaphoreTake(sys_se->se_humi_critical, 0) == pdTRUE)
-        {
-            neoMode = STATE_CRITICAL_NEO;
-        }
-        if (xQueueReceive(sys_se->queue_neo_mode, &neoMode, pdMS_TO_TICKS(10)) == pdTRUE)
-        {
-            manualUntil = millis() + 30000; // manual 30 giây
-        }
-        break;
-    case NEO_MODE_MANUAL:
-        // Chỉ nghe lệnh màu từ Web
-        neo_cmd_t cmd;
-        if (xQueueReceive(sys_se->queue_neo_cmd, &cmd, 0) == pdTRUE)
-        {
-            strip.setPixelColor(0, strip.Color(cmd.r, cmd.g, cmd.b));
-        }
-        // ── 2. Timeout manual → tự về Auto ──
-        if (millis() > manualUntil)
-        {
+            Serial.printf("init Task Neo success!!!");
             neoMode = NEO_MODE_AUTO;
-            Serial.println("Neo: manual timeout → auto");
+            break;
+        case NEO_MODE_AUTO:
+            if (xSemaphoreTake(sys_se->se_humi_normal, 0) == pdTRUE)
+            {
+                neoMode = STATE_NORMAL_NEO;
+            }
+            else if (xSemaphoreTake(sys_se->se_humi_warning, 0) == pdTRUE)
+            {
+                neoMode = STATE_WARNING_NEO;
+            }
+            else if (xSemaphoreTake(sys_se->se_humi_critical, 0) == pdTRUE)
+            {
+                neoMode = STATE_CRITICAL_NEO;
+            }
+            if (xQueueReceive(sys_se->queue_neo_mode, &neoMode, pdMS_TO_TICKS(10)) == pdTRUE)
+            {
+                manualUntil = millis() + 30000; // manual 30 giây
+            }
+            break;
+        case NEO_MODE_MANUAL:
+            // Chỉ nghe lệnh màu từ Web
+            neo_cmd_t cmd;
+            if (xQueueReceive(sys_se->queue_neo_cmd, &cmd, 0) == pdTRUE)
+            {
+                strip.setPixelColor(0, strip.Color(cmd.r, cmd.g, cmd.b));
+                strip.show();
+            }
+            if (xQueueReceive(sys_se->queue_neo_mode, &neoMode, pdMS_TO_TICKS(10)) == pdTRUE)
+            {
+
+                manualUntil = 0;
+            }
+            // ── 2. Timeout manual → tự về Auto ──
+            if (millis() > manualUntil)
+            {
+                neoMode = NEO_MODE_AUTO;
+                Serial.println("Neo: manual timeout → auto");
+            }
+            break;
+        case STATE_NORMAL_NEO:
+            strip.setPixelColor(0, strip.Color(0, 255, 0)); // Xanh lá
+            strip.show();
+            Serial.printf("NORMAL NEO HUMIDITY");
+            if (1)
+            {
+                neoMode = NEO_MODE_AUTO;
+                xSemaphoreGive(sys_se->se_humi_normal);
+            }
+            break;
+        case STATE_WARNING_NEO:
+            strip.setPixelColor(0, strip.Color(255, 255, 0)); // Vàng
+            strip.show();
+            Serial.printf("WARNING NEO HUMIDITY");
+            if (1)
+            {
+                neoMode = NEO_MODE_AUTO;
+                xSemaphoreGive(sys_se->se_humi_warning);
+            }
+            break;
+        case STATE_CRITICAL_NEO:
+            strip.setPixelColor(0, strip.Color(255, 0, 0)); // Đỏ
+            strip.show();
+            Serial.printf("CRITICAL NEO HUMIDITY");
+            if (1)
+            {
+                neoMode = NEO_MODE_AUTO;
+                xSemaphoreGive(sys_se->se_humi_critical);
+            }
+            break;
+        default:
+            break;
         }
-        break;
-    case STATE_NORMAL_NEO:
-        strip.setPixelColor(0, strip.Color(0, 255, 0)); // Xanh lá
-        strip.show();
-        Serial.printf("NORMAL NEO HUMIDITY");
-        if (1)
-        {
-            neoMode = NEO_MODE_AUTO;
-            xSemaphoreGive(sys_se->se_humi_normal);
-        }
-        break;
-    case STATE_WARNING_NEO:
-        strip.setPixelColor(0, strip.Color(255, 255, 0)); // Vàng
-        strip.show();
-        Serial.printf("WARNING NEO HUMIDITY");
-        if (1)
-        {
-            neoMode = NEO_MODE_AUTO;
-            xSemaphoreGive(sys_se->se_humi_warning);
-        }
-        break;
-    case STATE_CRITICAL_NEO:
-        strip.setPixelColor(0, strip.Color(255, 0, 0)); // Đỏ
-        strip.show();
-        Serial.printf("CRITICAL NEO HUMIDITY");
-        if (1)
-        {
-            neoMode = NEO_MODE_AUTO;
-            xSemaphoreGive(sys_se->se_humi_critical);
-        }
-        break;
-    default:
-        break;
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
