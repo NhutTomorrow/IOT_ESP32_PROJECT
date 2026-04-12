@@ -3,7 +3,7 @@
 #include "led_blinky.h"
 #include "neo_blinky.h"
 #include "temp_humi_monitor.h"
-// #include "tinyml.h"
+#include "tinyml.h"
 #include "task_read.h"
 #include "task_webserver.h"
 #include "task_core_iot.h"
@@ -65,7 +65,7 @@ void init_system_objects(system_se_t *system)
   // ════════════════════════════════
   //  QUEUE — Task 5 (ML result)
   // ════════════════════════════════
-  // system->queue_ml_result = xQueueCreate(1, sizeof(ml_result_t));
+  system->queue_ml_result = xQueueCreate(1, sizeof(ml_result_t));
 
   // ════════════════════════════════
   //  QUEUE — Task 6 (Cloud token)
@@ -97,6 +97,7 @@ void init_system_objects(system_se_t *system)
   ok &= (system->queue_neo_mode != NULL);
   ok &= (system->queue_wifi_config != NULL);
   ok &= (system->queue_wifi_status != NULL);
+  ok &= (system->queue_ml_result != NULL);
 
   // ok &= (system->queue_new_token != NULL);
 
