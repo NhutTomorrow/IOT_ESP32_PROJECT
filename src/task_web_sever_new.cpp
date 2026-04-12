@@ -244,7 +244,7 @@ static void setupRoutes(system_se_t *sys)
 
 // ── STATE_INIT ──
 // Đọc config từ NVS, quyết định bước tiếp theo
-static web_wifi_t handleInit(char *out_ssid, char *out_pass)
+static void handleInit(char *out_ssid, char *out_pass)
 {
     Preferences prefs;
     prefs.begin("config", true);
@@ -259,16 +259,6 @@ static web_wifi_t handleInit(char *out_ssid, char *out_pass)
     WiFi.softAPConfig(AP_IP, AP_IP, IPAddress(255, 255, 255, 0));
     WiFi.softAP(AP_SSID, AP_PASSWORD);
     Serial.printf("[SM] AP ready: %s / %s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
-
-    if (strlen(out_ssid) > 0)
-    {
-        WiFi.begin(out_ssid, out_pass);
-        Serial.printf("[SM] INIT → CONNECTING '%s'\n", out_ssid);
-        return WEB_WIFI_CONNECTING;
-    }
-
-    Serial.println("[SM] INIT → AP_ONLY (chưa có config)");
-    return WEB_WIFI_AP;
 }
 
 // ── STATE_AP_ONLY ──
@@ -428,22 +418,65 @@ void task_websever_new(void *pvParameter)
         switch (_wifiState)
         {
         case WEB_WIFI_INIT:
-            nextState = handleInit(saved_ssid, saved_pass);
+            handleInit(saved_ssid, saved_pass);
+            if (strlen(saved_ssid) > 0)
+            {
+                WiFi.begin(saved_ssid, saved_pass);
+                Serial.printf("[SM] INIT → CONNECTING '%s'\n", saved_ssid);
+                nextState = WEB_WIFI_CONNECTING;
+            }
+            else
+            {
+                Serial.println("[SM] INIT → AP_ONLY (chưa có config)");
+                nextState = WEB_WIFI_AP;
+            }
             vTaskDelay(pdMS_TO_TICKS(100)); // đợi AP ổn định
-
-            // ── BƯỚC 3: server.begin() — an toàn sau WiFi init ─
+            // ──  server.begin() — an toàn sau WiFi init ─
             setupRoutes(sys);
-            stateStartMs = millis();
-            break;
-
-        case WEB_WIFI_AP:
-            nextState = handleApOnly(sys, &newCfg);
             if (nextState != _wifiState)
                 stateStartMs = millis();
             break;
 
+        case WEB_WIFI_AP:
+
+            if (xQueueReceive(sys->queue_wifi_config, &newCfg, 0) == pdTRUE)
+            {
+                WiFi.mode(WIFI_AP_STA);
+                WiFi.begin(newCfg.ssid, newCfg.pass);
+                Serial.printf("[SM] AP_ONLY → CONNECTING '%s'\n", newCfg.ssid);
+                Serial.printf("Get new confg wifi from web sever");
+                nextState = WEB_WIFI_CONNECTING;
+            }
+
+            if (nextState != _wifiState)
+                stateStartMs = millis();
+
+            break;
+
         case WEB_WIFI_CONNECTING:
-            nextState = handleConnecting(sys, stateStartMs);
+
+            if (WiFi.status() == WL_CONNECTED)
+            {
+                Serial.printf("[SM] CONNECTING → CONNECTED (%s)\n",
+                              WiFi.localIP().toString().c_str());
+
+                wifi_status_t st = WIFI_CONNECTED;
+                xQueueOverwrite(sys->queue_wifi_status, &st);
+                xSemaphoreGive(sys->se_wifi); // báo task_cloud
+                nextState = WEB_WIFI_CONNECTED;
+            }
+
+            if (millis() - stateStartMs > STA_TIMEOUT_MS)
+            {
+                Serial.println("[SM] CONNECTING → AP_ONLY (timeout)");
+                WiFi.mode(WIFI_AP);
+                WiFi.softAP(AP_SSID, AP_PASSWORD);
+
+                wifi_status_t st = WIFI_FAILED;
+                xQueueOverwrite(sys->queue_wifi_status, &st);
+                nextState = WEB_WIFI_AP;
+            }
+
             if (nextState != _wifiState)
                 stateStartMs = millis();
             break;
@@ -459,10 +492,11 @@ void task_websever_new(void *pvParameter)
             if (nextState != _wifiState)
                 stateStartMs = millis();
             break;
+        default:
+            _wifiState = WEB_WIFI_INIT;
+            break;
         }
-
         _wifiState = nextState;
-
         // ── Nút BOOT → ép về AP_ONLY ──
         if (digitalRead(BOOT_PIN) == LOW)
         {

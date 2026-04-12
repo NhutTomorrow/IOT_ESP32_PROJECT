@@ -104,7 +104,7 @@ void task_temp_blink_state(void *pvParameter)
   system_se_t *sys_se = (system_se_t *)pvParameter;
   uint32_t lastBlinkTime = 0;
   uint32_t untilmanual = 0;
-  uint32_t periodBlink = 1000; // time to blink for led
+  uint32_t periodBlink = 1000; // time blink
   bool pinLedState = false;
   while (1)
   {
@@ -145,7 +145,7 @@ void task_temp_blink_state(void *pvParameter)
       if (xQueueReceive(sys_se->queue_led_mode, &led_mode, 0) == pdTRUE)
       {
         untilmanual = millis() + 30000; // timeout 30s manual -> auto
-      }
+            }
       break;
     case LED_MODE_MANUAL:
       led_cmd_t cmd;
@@ -169,9 +169,20 @@ void task_temp_blink_state(void *pvParameter)
     case STATE_WARNING:
       if (millis() - lastBlinkTime >= periodBlink)
       {
+        Serial.println("Toggle LED !!!");
         lastBlinkTime = millis();
-        digitalWrite(LED_GPIO, !pinLedState ? HIGH : LOW);
+        if (pinLedState)
+        {
+          digitalWrite(LED_GPIO, LOW);
+          pinLedState = false;
+        }
+        else
+        {
+          digitalWrite(LED_GPIO, HIGH);
+          pinLedState = true;
+        }
       }
+
       Serial.println("TEMPERATURE WARNING STATE");
       led_mode = LED_MODE_AUTO;
       xSemaphoreGive(sys_se->se_temp_warning);
@@ -192,5 +203,6 @@ void task_temp_blink_state(void *pvParameter)
 
       break;
     }
+    vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }
