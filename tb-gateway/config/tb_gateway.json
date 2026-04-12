@@ -1,0 +1,47 @@
+{
+  "thingsboard": {
+    "host": "app.coreiot.io",
+    "port": 1883,
+    "remoteShell": false,
+    "remoteConfiguration": false,
+    "statistics": {
+      "enable": false
+    },
+    "maxPayloadSizeBytes": 1024,
+    "sendDataOnlyOnChange": false,
+    "checkConnectorsConfigurationInSeconds": 60,
+    "keepAliveOpenConnections": 60,
+    "security": {
+      "type": "accessToken",
+      "accessToken": "UlK5KnR39MER2XunsW3w"
+    },
+    "qos": 1,
+    "checkingDeviceActivity": {
+      "checkDeviceInactivity": false,
+      "inactivityTimeoutSeconds": 200,
+      "inactivityCheckPeriodSeconds": 500
+    }
+  },
+  "storage": {
+    "type": "sqlite",
+    "data_folder_path": "/thingsboard_gateway/data/",
+    "max_records_count": 100000,
+    "max_records_per_file": 10000,
+    "read_records_count": 100,
+    "interval": 1000
+  },
+  "connection": {
+    "minReconnectDelay": 1,
+    "maxReconnectDelay": 60
+  },
+  "grpc": {
+    "enabled": false
+  },
+  "connectors": [
+    {
+      "name": "MQTT Connector",
+      "type": "mqtt",
+      "configuration": "mqtt.json"
+    }
+  ]
+}

@@ -10,4 +10,5 @@ void task_temp_humi_monitor(void *pvParameter);
 void normal_monitor(float temp, float humi);
 void alert_monitor(float temp, float humi);
 void warning_monitor(float temp, float humi);
+extern void task_monitor_state(void *pvParameter);
 #endif

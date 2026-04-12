@@ -1,0 +1,9 @@
+{
+  "ESP32-80B54EDEECC4": {
+    "connectorId": "2c12683c-a371-4a75-a849-c2689e1d12e0",
+    "connectorName": "MQTT Connector",
+    "deviceType": "ESP32_SENSOR",
+    "disconnected": false,
+    "renaming": null
+  }
+}

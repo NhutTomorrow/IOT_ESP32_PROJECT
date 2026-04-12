@@ -42,7 +42,7 @@ void task_read_sensor(void *pvParameter)
                 current_data.temperature = dht20.getTemperature();
                 current_data.humidity = dht20.getHumidity();
                 current_data.ml_status = 0;
-
+                current_data.timestamp_ms = millis();
                 xQueueOverwrite(sys_se->queue_raw_data,
                                 &current_data);
 
